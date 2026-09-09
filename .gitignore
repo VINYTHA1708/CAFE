@@ -12,3 +12,5 @@ Thumbs.db
 kaggle_page*.csv
 kaggle_page*.json
 kaggle_files.txt
+
+detector_reference/

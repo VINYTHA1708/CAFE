@@ -170,7 +170,7 @@ def _to_original_interval(frame_index, interval):
     )
 
 
-def generate_candidates(video_id):
+def generate_candidates(video_id, config=None):
     """Generate detector-driven candidate explanation hypotheses."""
     import json
     from pathlib import Path
@@ -180,7 +180,8 @@ def generate_candidates(video_id):
     from cafe.detector.base_detector import BaseDetector
     from cafe.utils.config import load_config
 
-    config = load_config()
+    if config is None:
+        config = load_config()
 
     cache_dir = Path(config["paths"]["cache"]) / video_id
 

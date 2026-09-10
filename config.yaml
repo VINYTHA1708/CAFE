@@ -11,6 +11,11 @@ n_controls: 20
 tau_percentile: 95
 seed: 42
 
+intervention:
+  blend_alpha: 0.8
+  feather_px: 5
+  blur_sigma: 8.0
+
 cues:
   - eye_motion
   - mouth_motion

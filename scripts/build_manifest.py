@@ -13,13 +13,16 @@ def inspect_video(path):
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         return None
+
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = float(cap.get(cv2.CAP_PROP_FPS))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
+
     if fps <= 0 or n_frames < MIN_FRAMES:
         return None
+
     duration = n_frames / fps
     return n_frames, fps, duration, width, height
 
@@ -27,19 +30,23 @@ def inspect_video(path):
 def build_manifest():
     rows = []
     skipped = 0
+
     fake_root = DATASET_ROOT / "fake"
     real_root = DATASET_ROOT / "real"
 
     for path in sorted(fake_root.rglob("*.mp4")):
         info = inspect_video(path)
+
         if info is None:
             print(f"WARNING: skipped {path}")
             skipped += 1
             continue
+
         n_frames, fps, duration, width, height = info
         method = path.parent.name
-        video_id = path.stem
-        source_id = video_id.split("_")[0]
+        video_id = f"{method}_{path.stem}"
+        source_id = path.stem.split("_")[0]
+
         rows.append({
             "video_id": video_id,
             "path": path.relative_to(PROJECT_ROOT).as_posix(),
@@ -55,18 +62,21 @@ def build_manifest():
 
     for path in sorted(real_root.glob("*.mp4")):
         info = inspect_video(path)
+
         if info is None:
             print(f"WARNING: skipped {path}")
             skipped += 1
             continue
+
         n_frames, fps, duration, width, height = info
-        video_id = path.stem
+        video_id = f"real_{path.stem}"
+
         rows.append({
             "video_id": video_id,
             "path": path.relative_to(PROJECT_ROOT).as_posix(),
             "label": "real",
             "method": "original",
-            "source_id": video_id,
+            "source_id": path.stem,
             "n_frames": n_frames,
             "fps": fps,
             "duration_sec": duration,
@@ -75,7 +85,19 @@ def build_manifest():
         })
 
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["video_id", "path", "label", "method", "source_id", "n_frames", "fps", "duration_sec", "width", "height"]
+
+    fieldnames = [
+        "video_id",
+        "path",
+        "label",
+        "method",
+        "source_id",
+        "n_frames",
+        "fps",
+        "duration_sec",
+        "width",
+        "height",
+    ]
 
     with open(MANIFEST_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

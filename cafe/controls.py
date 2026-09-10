@@ -28,21 +28,8 @@ def generate_controls(video, candidate, n_controls, rng):
     """
     Generate seeded control specifications for one candidate.
 
-    Parameters
-    ----------
-    video : dict
-        Video metadata. Must contain n_frames.
-    candidate : dict
-        Candidate specification containing cue, interval and strength.
-    n_controls : int
-        Number of controls to generate.
-    rng : random.Random
-        Seeded random-number generator.
-
-    Returns
-    -------
-    list[dict]
-        Control specifications.
+    The control set contains sham, interval-shift, and cue-swap
+    families while keeping the intervention strength unchanged.
     """
     if n_controls < 1:
         raise ValueError("n_controls must be positive")
@@ -50,7 +37,11 @@ def generate_controls(video, candidate, n_controls, rng):
     n_frames = int(video["n_frames"])
     candidate_cue = candidate["cue"]
     candidate_interval = tuple(map(int, candidate["interval"]))
-    candidate_strength = dict(candidate["strength"])
+    candidate_strength = dict(candidate.get("strength", {
+        "blend_alpha": 0.8,
+        "feather_px": 5,
+        "blur_sigma": 8.0,
+    }))
 
     length = _interval_length(candidate_interval)
 
@@ -63,17 +54,34 @@ def generate_controls(video, candidate, n_controls, rng):
     if length > n_frames:
         raise ValueError("Candidate interval is longer than video")
 
-    controls = []
+    sham_count = min(2, n_controls)
+    remaining = n_controls - sham_count
+
+    shift_count = remaining // 2
+    swap_count = remaining - shift_count
 
     shifted = _non_overlapping_intervals(
         n_frames,
         length,
         candidate_interval,
-        rng
+        rng,
     )
 
-    # Use interval-shift controls whenever possible.
-    for interval in shifted:
+    if shift_count > len(shifted):
+        shift_count = len(shifted)
+        swap_count = remaining - shift_count
+
+    controls = []
+
+    for _ in range(sham_count):
+        controls.append({
+            "type": "sham",
+            "cue": candidate_cue,
+            "interval": candidate_interval,
+            "strength": dict(candidate_strength),
+        })
+
+    for interval in shifted[:shift_count]:
         controls.append({
             "type": "interval_shift",
             "cue": candidate_cue,
@@ -81,10 +89,13 @@ def generate_controls(video, candidate, n_controls, rng):
             "strength": dict(candidate_strength),
         })
 
-    # Add cue swaps using the exact candidate interval.
-    swap_cues = [cue for cue in VALID_CUES if cue != candidate_cue]
-    while len(controls) < n_controls:
-        cue = rng.choice(swap_cues)
+    swap_cues = [
+        cue for cue in VALID_CUES
+        if cue != candidate_cue
+    ]
+
+    for i in range(swap_count):
+        cue = swap_cues[i % len(swap_cues)]
 
         controls.append({
             "type": "cue_swap",
@@ -93,15 +104,7 @@ def generate_controls(video, candidate, n_controls, rng):
             "strength": dict(candidate_strength),
         })
 
-    # Replace a few controls with sham runs when possible.
-    sham_count = min(2, n_controls)
-    for i in range(sham_count):
-        controls[i] = {
-            "type": "sham",
-            "cue": candidate_cue,
-            "interval": candidate_interval,
-            "strength": dict(candidate_strength),
-        }
+    rng.shuffle(controls)
 
     return controls[:n_controls]
 

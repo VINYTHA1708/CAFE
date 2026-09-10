@@ -5,7 +5,7 @@ paths:
   models: models
 
 frames_per_video: 32
-interval_length: 16
+interval_length: 8
 n_candidates: 6
 n_controls: 20
 tau_percentile: 95

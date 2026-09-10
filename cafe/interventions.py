@@ -5,7 +5,7 @@ from cafe.landmarks import region_mask
 from cafe.utils.config import load_config
 
 
-def apply_intervention(frames, landmarks, cue, interval, strength=None):
+def apply_intervention(frames, landmarks, cue, interval, strength=None, sham=False):
     """
     Apply a counterfactual intervention and return a modified copy.
 
@@ -58,7 +58,9 @@ def apply_intervention(frames, landmarks, cue, interval, strength=None):
 
     result = frames.copy()
 
-    # Operators will be added next.
+    if sham:
+        return _apply_sham(result, landmarks, t1, t2, strength, cue)
+
     if cue == "eye_motion":
         return _apply_eye_motion(
             result, landmarks, t1, t2, strength
@@ -74,16 +76,6 @@ def apply_intervention(frames, landmarks, cue, interval, strength=None):
     )
 
 
-def _apply_eye_motion(frames, landmarks, t1, t2, strength):
-    raise NotImplementedError
-
-
-def _apply_mouth_motion(frames, landmarks, t1, t2, strength):
-    raise NotImplementedError
-
-
-def _apply_face_texture(frames, landmarks, t1, t2, strength):
-    raise NotImplementedError
 from pathlib import Path
 import numpy as np
 import cv2
@@ -99,6 +91,9 @@ def _alpha_composite(original, replacement, mask, alpha):
     alpha controls intervention strength.
     mask is a soft [0,1] spatial mask.
     """
+    if np.array_equal(original, replacement):
+        return original.copy()
+
     a = np.clip(mask * alpha, 0.0, 1.0)[..., None]
 
     result = (
@@ -108,6 +103,46 @@ def _alpha_composite(original, replacement, mask, alpha):
 
     return np.clip(result, 0, 255).astype(np.uint8)
 
+
+def _apply_sham(frames, landmarks, t1, t2, strength, cue):
+    """Run the same mask/blend/composite pipeline without changing content."""
+    result = frames.copy()
+
+    alpha = float(strength["blend_alpha"])
+    feather_px = int(strength["feather_px"])
+
+    if cue == "eye_motion":
+        region = "eyes"
+    elif cue == "mouth_motion":
+        region = "mouth"
+    elif cue == "face_texture":
+        region = "face"
+    else:
+        raise ValueError(f"Unknown cue: {cue}")
+
+    for t in range(t1, t2 + 1):
+        lm = landmarks[t]
+
+        if not np.isfinite(lm).all():
+            continue
+
+        mask = region_mask(
+            lm,
+            region,
+            feather_px=feather_px
+        )
+
+        original = result[t]
+        replacement = original.copy()
+
+        result[t] = _alpha_composite(
+            original,
+            replacement,
+            mask,
+            alpha
+        )
+
+    return result
 
 def _apply_face_texture(frames, landmarks, t1, t2, strength):
     result = frames.copy()
@@ -347,3 +382,7 @@ def _apply_eye_motion(frames, landmarks, t1, t2, strength):
         )
 
     return result
+
+
+
+

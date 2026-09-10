@@ -170,7 +170,7 @@ def _to_original_interval(frame_index, interval):
     )
 
 
-def generate_candidates(video_id, config=None):
+def generate_candidates(video_id, config=None, detector=None):
     """Generate detector-driven candidate explanation hypotheses."""
     import json
     from pathlib import Path
@@ -191,7 +191,8 @@ def generate_candidates(video_id, config=None):
     with open(cache_dir / "index.json", "r", encoding="utf-8") as f:
         frame_index = json.load(f)
 
-    detector = BaseDetector()
+    if detector is None:
+        detector = BaseDetector()
 
     per_frame_scores = detector.score_frames(faces)
 
@@ -234,3 +235,71 @@ def generate_candidates(video_id, config=None):
         )
 
     return candidates
+
+def generate_placebo_candidates(
+    n_frames,
+    n_candidates,
+    rng,
+    config=None,
+    frame_index=None,
+):
+    """Generate unique random cue-interval placebo hypotheses."""
+    if n_frames < 1:
+        raise ValueError("n_frames must be >= 1")
+    if n_candidates < 1:
+        raise ValueError("n_candidates must be >= 1")
+
+    if config is None:
+        from cafe.utils.config import load_config
+        config = load_config()
+
+    interval_length = int(config["interval_length"])
+
+    if interval_length > n_frames:
+        raise ValueError("interval_length cannot exceed number of frames")
+
+    possible_intervals = [
+        (start, start + interval_length - 1)
+        for start in range(n_frames - interval_length + 1)
+    ]
+
+    possible_pairs = [
+        (cue, interval)
+        for cue in CUE_REGIONS
+        for interval in possible_intervals
+    ]
+
+    if n_candidates > len(possible_pairs):
+        raise ValueError(
+            "n_candidates exceeds available unique placebo pairs"
+        )
+
+    selected = rng.sample(possible_pairs, n_candidates)
+
+    if frame_index is None:
+        frame_index = [
+            {"original_frame_index": i}
+            for i in range(n_frames)
+        ]
+
+    candidates = []
+
+    for cue, sampled_interval in selected:
+        candidates.append(
+            {
+                "cue": cue,
+                "interval": _to_original_interval(
+                    frame_index,
+                    sampled_interval,
+                ),
+                "sampled_interval": (
+                    int(sampled_interval[0]),
+                    int(sampled_interval[1]),
+                ),
+                "placebo": True,
+            }
+        )
+
+    return candidates
+
+

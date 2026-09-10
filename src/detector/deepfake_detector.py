@@ -54,6 +54,34 @@ class DeepfakeDetector:
             train=False,
         )
 
+    def predict_frames(self, frames):
+        """Return one raw detector logit for each in-memory BGR frame."""
+
+        if not frames:
+            return np.array([], dtype=np.float32)
+
+        faces = []
+        for frame in frames:
+            result = self.face_extractor.process_image(img=frame)
+
+            if not result["faces"]:
+                continue
+
+            # FaceExtractor sorts faces by descending confidence.
+            faces.append(result["faces"][0])
+
+        if not faces:
+            raise ValueError("No faces detected in supplied frames")
+
+        batch = torch.stack(
+            [self.transformer(image=face)["image"] for face in faces]
+        ).to(self.device)
+
+        with torch.no_grad():
+            logits = self.model(batch).cpu().numpy().flatten()
+
+        return logits
+
     def predict_video(self, video_path):
         """Return the detector's video-level score."""
 

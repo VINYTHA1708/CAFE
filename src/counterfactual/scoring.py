@@ -62,3 +62,9 @@ def compute_threshold(control_effects, margin=0.05):
         raise ValueError("margin must be non-negative")
 
     return float(effects.mean() + margin)
+def verify_explanation(effect, threshold):
+    """
+    Verify whether a candidate explanation has a sufficiently
+    large counterfactual effect.
+    """
+    return bool(effect > threshold)

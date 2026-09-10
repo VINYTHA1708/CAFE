@@ -49,3 +49,16 @@ def compute_framewise_effect(original_logits, counterfactual_logits):
         )
 
     return original - counterfactual
+def compute_threshold(control_effects, margin=0.05):
+    """
+    Compute the verification threshold from control intervention effects.
+    """
+    effects = np.asarray(control_effects, dtype=np.float32)
+
+    if effects.size == 0:
+        raise ValueError("control_effects cannot be empty")
+
+    if margin < 0:
+        raise ValueError("margin must be non-negative")
+
+    return float(effects.mean() + margin)

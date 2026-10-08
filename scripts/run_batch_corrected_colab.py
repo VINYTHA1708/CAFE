@@ -32,7 +32,6 @@ from cafe import interventions as intervention_module
 from cafe import landmarks as landmark_module
 from cafe.candidates import (
     assign_cue,
-    generate_placebo_candidates,
     propose_intervals,
 )
 from cafe.controls import apply_control, generate_controls
@@ -238,7 +237,7 @@ def _run_condition(
     landmarks,
     frame_index,
     original_score,
-    frame_scores,
+    candidates,
     config,
     detector,
 ):
@@ -253,21 +252,6 @@ def _run_condition(
             "candidates": [],
             "timings": {"total_sec": time.perf_counter() - started},
         }
-
-    if condition == "real":
-        candidates = _generate_real_candidates(
-            video_id, frames, landmarks, frame_index, frame_scores, config, detector
-        )
-    else:
-        seed_offset = 100000 if condition == "authentic" else 0
-        rng = random.Random(_stable_video_seed(config["seed"], video_id, seed_offset))
-        candidates = generate_placebo_candidates(
-            len(frames),
-            int(config["n_candidates"]),
-            rng,
-            config=config,
-            frame_index=frame_index,
-        )
 
     if not candidates:
         return {
@@ -402,7 +386,7 @@ def _atomic_json(path, record):
     os.replace(temporary, path)
 
 
-def _is_resumable(path, video_id, condition):
+def _is_resumable(path, video_id, condition, expected_candidates=None):
     if not path.is_file():
         return False
     try:
@@ -421,6 +405,13 @@ def _is_resumable(path, video_id, condition):
             len(candidate.get("control_effects", [])) != 20
             or float(candidate.get("tau_percentile", -1)) != 95.0
         ):
+            return False
+    if expected_candidates is not None:
+        stored_candidates = [
+            candidate.get("candidate")
+            for candidate in record["candidates"]
+        ]
+        if stored_candidates != expected_candidates:
             return False
     return True
 
@@ -525,9 +516,28 @@ def main(argv=None):
         label = str(row["label"])
         method = str(row["method"])
         pending = []
+        real_output_path = output_dir / f"{video_id}__real.json"
+        reference_candidates = None
+        if _is_resumable(real_output_path, video_id, "real"):
+            real_record = json.loads(real_output_path.read_text(encoding="utf-8"))
+            reference_candidates = [
+                item.get("candidate")
+                for item in real_record["candidates"]
+            ]
         for condition in conditions:
             out_path = output_dir / f"{video_id}__{condition}.json"
-            if _is_resumable(out_path, video_id, condition):
+            expected_candidates = (
+                None if condition == "real" else reference_candidates
+            )
+            resumable = _is_resumable(
+                out_path,
+                video_id,
+                condition,
+                expected_candidates=expected_candidates,
+            )
+            if condition != "real" and reference_candidates is None:
+                resumable = False
+            if resumable:
                 completed += 1
                 progress.update(1)
                 continue
@@ -543,9 +553,19 @@ def main(argv=None):
             landmarks = load_or_build_landmark_cache(video_id)
             original_score = None
             frame_scores = None
+            real_candidates = []
             if len(frames):
                 frame_scores = detector.score_frames(frames)
                 original_score = float(frame_scores.mean())
+                real_candidates = _generate_real_candidates(
+                    video_id,
+                    frames,
+                    landmarks,
+                    frame_index,
+                    frame_scores,
+                    config,
+                    detector,
+                )
 
             for condition, out_path in pending:
                 try:
@@ -558,7 +578,7 @@ def main(argv=None):
                         landmarks,
                         frame_index,
                         original_score,
-                        frame_scores,
+                        real_candidates,
                         config,
                         detector,
                     )

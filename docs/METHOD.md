@@ -47,8 +47,8 @@ individual face crops and aggregates them into a per-video probability.
 
 ## Module 3 — Candidate Explanation Generation
 
-**Purpose:** Identify the temporal intervals and facial cue channels that the
-detector relies on most, and package them as candidate explanation hypotheses.
+**Purpose:** Generate detector-guided temporal intervals and assign a facial
+cue to each candidate explanation hypothesis.
 
 | Item | Detail |
 |------|--------|
@@ -58,9 +58,31 @@ detector relies on most, and package them as candidate explanation hypotheses.
 | Cue assignment | Grad-CAM overlap with three region masks: `eye_motion` (eyes), `mouth_motion` (mouth), `face_texture` (full face) — implemented in `assign_cue` via `_gradcam_for_face` |
 | Grad-CAM layer | `model.efficientnet._conv_head` |
 | Cue channels | `eye_motion`, `mouth_motion`, `face_texture` |
-| Placebo candidates | Randomly sampled cue-interval pairs with no detector guidance (`generate_placebo_candidates`) |
 | Candidates per video | 6 (configurable via `config.yaml → n_candidates`) |
 | Interval length | 8 sampled frames (configurable via `config.yaml → interval_length`) |
+
+### Primary experiment
+
+For each video, the primary experiment scores the original sampled face crops,
+selects the top non-overlapping intervals, and assigns each interval the cue
+with the greatest Grad-CAM overlap. The resulting detector-guided candidate
+list is then counterfactually verified. Corrected canonical MediaPipe eye and
+lip masks are used for those cue regions; the full-face mask used by
+`face_texture` is unchanged. In the final 60-video primary run, all 173
+candidates were assigned `face_texture`. This is a cue-assignment limitation,
+not evidence that `face_texture` is superior; the primary results do not
+support a comparative claim about the three cue channels.
+
+### Historical candidate conditions
+
+The earlier three-condition experiment used detector-guided candidates for
+`real`, randomly sampled cue-interval pairs for `placebo`, and independently
+seeded random cue-interval pairs for `authentic`. These different candidate
+populations make those outputs historical and superseded for the primary
+conclusions. A later candidate-sharing run reused detector-guided candidates
+across all three condition labels; because verification was condition-agnostic,
+those repeated outputs are not independent experimental arms. Neither run is
+the final primary experiment.
 
 ---
 
@@ -85,8 +107,9 @@ channel and temporal interval, producing a modified frame array for re-scoring.
 ## Module 5 — Control-Based Verification
 
 **Purpose:** Build a null distribution of detector-score effects from matched
-controls, derive a threshold τ, and compute a permutation-style p-value to
-decide whether the candidate effect is significant.
+controls, derive a threshold τ, and compute a permutation-style p-value.
+Support is an operational decision, not a claim of conventional statistical
+significance.
 
 | Item | Detail |
 |------|--------|
@@ -96,9 +119,14 @@ decide whether the candidate effect is significant.
 | Controls per candidate | 20 (configurable via `config.yaml → n_controls`) |
 | Threshold τ | 95th percentile of control effects (configurable via `config.yaml → tau_percentile`) |
 | p-value formula | `p = (1 + #{δ_i ≥ δ}) / (1 + m)` where m = number of controls |
-| Support criterion | `δ_candidate > τ` |
+| Operational support criterion | `δ_candidate > τ`; otherwise abstain |
 
 ---
+
+With 20 controls, the current p-value formula has a minimum attainable value
+of `1/21 ≈ 0.047619`. That resolution, the small evaluation subset, and
+multiple candidate tests limit statistical interpretation. A p-value at this
+minimum is not, by itself, evidence of conventional statistical significance.
 
 ## Module 6 — Explanation Decision and Rendering
 
@@ -120,7 +148,8 @@ human-readable explanation or abstention message, and persist the result.
 | Script | Purpose |
 |--------|---------|
 | `scripts/run_cafe.py` | CLI wrapper for `run_cafe()` — single video |
-| `scripts/run_batch.py` | Runs all manifest videos × 3 conditions (real, placebo, authentic) |
+| `scripts/run_batch_corrected_colab.py` | Corrected runner; the primary run uses `--conditions real` |
+| `scripts/run_batch.py` | Historical three-condition runner; does not reproduce the primary experiment |
 | `scripts/build_manifest.py` | Builds `data/manifest.csv` from `dataset/` |
 | `scripts/precompute_frames.py` | Pre-builds frame/face caches for all manifest videos |
 | `scripts/precompute_landmarks.py` | Pre-builds landmark caches for all manifest videos |
@@ -129,3 +158,7 @@ human-readable explanation or abstention message, and persist the result.
 | `scripts/plot_intervention_examples.py` | Generates `docs/figures/intervention_examples.png` |
 | `scripts/check_detector.py` | Re-encode sensitivity sanity study |
 | `scripts/verify_video.py` | Standalone verification for one video (development utility) |
+
+The primary run's per-video results and summary are in
+`results/primary_full/`. The historical three-condition outputs under
+`results/runs/` must not be presented as independent primary conditions.

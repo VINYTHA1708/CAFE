@@ -190,61 +190,44 @@ The result is written to:
 results/runs/<video_id>.json
 ```
 
-### Batch experiment
+### Final primary experiment
 
-The complete experiment evaluates all 60 videos under three conditions:
+The final primary experiment is one detector-guided condition over the 60-video
+FaceForensics++ C23 subset. It generated candidates from the original
+detector/frame scores, then verified each candidate using counterfactual
+interventions and 20 controls. It completed with 173 candidates and no failed
+videos.
 
-- `real`
-- `placebo`
-- `authentic`
+The historical three-condition runner (`scripts/run_batch.py`) evaluates
+`real`, `placebo`, and `authentic` with different candidate populations. Its
+outputs under `results/runs/` are historical and are not the primary results.
+The later candidate-sharing run is also not three independent experimental
+conditions.
 
-Run:
+To run the primary detector-guided condition with the corrected masks and
+Colab-ready runner:
 
 ```powershell
-python scripts/run_batch.py --manifest data/manifest.csv --config config.yaml --out results/runs
+python scripts/run_batch_corrected_colab.py `
+  --manifest data/manifest.csv `
+  --config config.yaml `
+  --conditions real `
+  --out results/primary_full
 ```
 
-The complete experiment consists of:
-
-```text
-60 videos × 3 conditions = 180 run units
-```
-
-The batch runner is idempotent and skips already-completed condition runs.
-
-Per-run results are stored as:
-
-```text
-results/runs/<video_id>__<condition>.json
-```
-
-The flat summary is:
-
-```text
-results/batch_summary.csv
-```
+The primary per-video JSON files and summary are stored in
+`results/primary_full/`, including
+`results/primary_full/batch_corrected_summary.csv`. Do not use the old
+three-condition command as a reproduction of these primary results.
 
 ---
 
 ## Reproducing the Quantitative Results
 
-After completing the batch experiment, generate the metric tables and figures:
-
-```powershell
-python scripts/make_figures.py
-```
-
-This generates the quantitative tables under:
-
-```text
-results/tables/
-```
-
-and figures under:
-
-```text
-docs/figures/
-```
+The final primary results are summarized in `docs/RESULTS.md` and in
+`results/primary_full/batch_corrected_summary.csv`. The historical
+`scripts/make_figures.py` reads the legacy three-condition JSONs from
+`results/runs/`; it does not reproduce the final primary analysis.
 
 ### Generate qualitative case studies
 
@@ -270,14 +253,15 @@ docs/REPRODUCE.md
 
 | Artifact                | Path                        |
 | ----------------------- | --------------------------- |
-| Per-run JSON files      | `results/runs/`             |
-| Batch summary           | `results/batch_summary.csv` |
-| Metric tables           | `results/tables/`           |
-| Quantitative figures    | `docs/figures/`             |
+| Primary per-video JSONs | `results/primary_full/`     |
+| Primary batch summary   | `results/primary_full/batch_corrected_summary.csv` |
+| Historical run JSONs    | `results/runs/`             |
+| Historical tables       | `results/tables/`           |
+| Existing figures        | `docs/figures/`             |
 | Screenshots             | `docs/screenshots/`         |
 | Demo videos             | `results/demo_videos/`      |
 | Detector sanity results | `results/sanity/`           |
-| Execution logs          | `results/logs/`             |
+| Primary execution log   | `results/primary_full/`     |
 
 ---
 
@@ -347,7 +331,7 @@ The verification threshold is the selected percentile of the control distributio
 tau = percentile(E, 95)
 ```
 
-A candidate explanation is supported when:
+A candidate explanation is operationally supported when:
 
 ```text
 Delta(c, I) > tau
@@ -357,33 +341,23 @@ If no tested candidate passes the verification criterion, CAFE abstains instead 
 
 ---
 
-## Experimental Results
+## Primary Experimental Results
 
-The reproduced experiment contains:
+On this 60-video evaluation subset, CAFE produced a verified explanation for
+6/40 fake videos and abstained on all 20 genuine videos. This is explanation
+verification behaviour, not standalone deepfake-detection accuracy. All 173
+primary candidates were assigned `face_texture`; this candidate-generation /
+cue-assignment bias prevents a fair comparison of the three cue channels.
 
-```text
-60 videos
-180 condition runs
-893 candidate rows
-0 failed runs
-```
+The six supported candidates each have p = 0.047619, the minimum attainable
+with 20 controls under the current calculation. This value alone is not
+conventional statistical significance; the small control count and multiple
+candidate tests limit statistical interpretation.
 
-At the default 95th-percentile threshold:
-
-| Condition | Label | Videos | Videos with supported explanation | Support rate |
-| --------- | ----- | -----: | --------------------------------: | -----------: |
-| Authentic | Fake  |     40 |                                 7 |        17.5% |
-| Authentic | Real  |     20 |                                 1 |         5.0% |
-| Placebo   | Fake  |     40 |                                 4 |        10.0% |
-| Placebo   | Real  |     20 |                                 1 |         5.0% |
-| Real      | Fake  |     40 |                                 5 |        12.5% |
-| Real      | Real  |     20 |                                 0 |         0.0% |
-
-Detailed results and additional analyses are available in:
-
-```text
-docs/RESULTS.md
-```
+See `docs/RESULTS.md` and
+`results/primary_full/batch_corrected_summary.csv` for the primary results.
+Earlier three-condition results and tooling are historical/superseded and are
+not evidence from three independent arms of the primary experiment.
 
 ---
 

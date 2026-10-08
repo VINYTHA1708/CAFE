@@ -18,13 +18,15 @@ multi-layer or guided-backpropagation alternatives are not implemented.  If the
 detector relies on features from earlier layers the assigned cue may not
 reflect the true attribution.
 
-## 3. Three fixed cue channels
+## 3. Cue-assignment bias
 
 The system recognises exactly three cues: `eye_motion`, `mouth_motion`, and
 `face_texture`.  Manipulations that affect other facial regions (e.g. hair,
-neck, background bleed-through) cannot be captured.  Under the `real`
-condition all candidates in the current experiment were assigned `face_texture`
-because the full-face Grad-CAM region dominates for this detector.
+neck, background bleed-through) cannot be captured. All 173 candidates in the
+primary experiment were assigned `face_texture`. This is a
+candidate-generation/cue-assignment bias and means the experiment cannot fairly
+compare the three cue channels. It is not evidence that `face_texture` is
+superior.
 
 ## 4. Intervention fidelity
 
@@ -47,40 +49,55 @@ produce unreliable candidates.
 
 ## 6. Small dataset
 
-The experiment uses 60 videos (40 fake, 20 real) from FaceForensics++ C23.
-Support rates are therefore estimated from small counts (e.g. 5 supported
-videos out of 40 in the `real / fake` cell) and carry high variance.
+The primary experiment uses 60 videos (40 fake, 20 real) from FaceForensics++
+C23. Observed support rates are based on small counts (6/40 fake videos and
+0/20 real videos), are descriptive of this subset, and should not be
+generalized to all of FaceForensics++.
 
 ## 7. Low overall support rate
 
-Under the default configuration (τ at the 95th percentile of 20 mixed
-controls) the video-level support rate on fake videos is 12.5% (`real`
-condition).  Most videos receive no verified explanation.  This reflects the
-conservatism of the control threshold rather than a failure of the
-interventions per se, but it limits the practical utility of the system.
+Under the primary configuration (τ at the 95th percentile of 20 mixed
+controls), 6/40 fake videos (15%) received a supported explanation and 34/40
+did not; 0/20 genuine videos received a supported explanation. These are
+descriptive results. The low support rate is not attributed to threshold
+conservatism or intervention failure because this experiment does not isolate
+a single cause.
 
 ## 8. Control set size
 
 Each candidate is compared against 20 controls (2 sham, ~9 interval-shift,
 ~9 cue-swap, exact split depends on available non-overlapping intervals).  The
 permutation p-value `(1 + #{δ_i ≥ δ}) / (1 + m)` has a minimum value of
-`1/21 ≈ 0.048` with m = 20, which limits statistical resolution.
+`1/21 ≈ 0.047619` with m = 20. All six supported candidates attain this
+minimum. It is not, by itself, conventional statistical significance; the
+coarse p-value resolution, 173 candidate tests, and small evaluation subset
+limit statistical interpretation.
 
-## 9. Idempotent batch runner — no re-run on config change
+## 9. No temporal localization ground truth
+
+The FF++ evaluation subset used here does not provide temporal manipulation
+ground-truth annotations for measuring temporal localization accuracy.
+Candidate intervals should not be presented as validated manipulation
+boundaries or localization performance.
+
+## 10. Idempotent batch runner — no re-run on config change
 
 `scripts/run_batch.py` skips any output file that already exists and is valid
 JSON.  If `config.yaml` is changed after a partial run, existing results will
 not be recomputed.  The output directory must be cleared manually before
 re-running with different parameters.
 
-## 10. FFmpeg path is hard-coded
+## 11. Historical condition outputs
+
+The historical three-condition experiment used different candidate
+populations for `real`, `placebo`, and `authentic`. A later candidate-sharing
+run reused detector-guided candidates under all three labels; because scoring
+was condition-agnostic, those outputs were numerically identical and are not
+independent experimental arms. Neither set of three-condition results is the
+primary experiment.
+
+## 12. FFmpeg path is hard-coded
 
 `scripts/check_detector.py` contains a hard-coded absolute path to an FFmpeg
-binary.  The re-encode sanity check will fail on any machine where FFmpeg is
-not installed at that exact location.
-
-## 11. No report or presentation in the repository
-
-No written report, thesis, or slide deck is stored in this repository or in
-the surrounding file system.  Only the source code, cached data, run results,
-tables, and figures described in `README.md` are present.
+binary. The re-encode sanity check may fail on machines where FFmpeg is not
+installed at that exact location.

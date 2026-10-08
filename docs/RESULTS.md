@@ -1,221 +1,132 @@
-# CAFE — Results
+# CAFE — Primary Results
 
-All numbers in this document are read directly from the files in
-`results/tables/` and `results/sanity/` produced by `scripts/make_figures.py`
-and `scripts/check_detector.py`.  Figures are in `docs/figures/`.
+This document reports the final primary experiment: one detector-guided
+candidate-generation condition on the 60-video FaceForensics++ C23 evaluation
+subset. The run completed on a Colab T4 GPU in approximately 15 minutes 16
+seconds. The primary per-video JSONs, batch log, and flat summary are in
+`results/primary_full/`; the summary is
+`results/primary_full/batch_corrected_summary.csv`.
 
----
-
-## Experimental setup
+## Primary setup
 
 | Parameter | Value |
 |-----------|-------|
-| Videos | 60 (40 fake, 20 real) from FaceForensics++ C23 |
-| Fake methods | Deepfakes (10), Face2Face (10), FaceSwap (10), NeuralTextures (10) |
-| Frames per video | 32 (uniform sampling) |
-| Candidates per video | 6 |
-| Interval length | 8 sampled frames |
-| Controls per candidate | 20 (sham × 2, interval-shift, cue-swap) |
-| τ percentile (default) | 95 |
-| Conditions | `real` (detector-guided), `placebo` (random cue-interval), `authentic` (random on real videos) |
+| Dataset | FaceForensics++ C23 subset |
+| Videos | 60: 40 fake and 20 real/original |
+| Detector | Frozen EfficientNet-B4 FF++ |
+| Conditions | One primary condition: `real` (detector-guided candidates) |
+| Candidate generation | Detector/frame-score interval ranking and Grad-CAM cue assignment |
+| Candidates | 173 total: 116 fake-video candidates and 57 real-video candidates |
+| Controls | 20 per candidate: 2 sham, approximately 9 interval-shift and 9 cue-swap |
+| Threshold | 95th percentile of the candidate's control effects |
+| Operational support rule | Supported iff `Δ > τ`; otherwise abstain |
+| Failures | 0 |
+| Training | None |
 
----
+The three available cue channels are `eye_motion`, `mouth_motion`, and
+`face_texture`. **All 173 primary candidates were assigned `face_texture`.**
+This is a candidate-generation/cue-assignment bias and limitation: these
+results cannot fairly compare the three cue channels and do not establish that
+`face_texture` is superior.
 
-## Video-level support and abstention rates
+## Video- and candidate-level support
 
-Source: `results/tables/support_abstention.md`
+| Label | Videos | Candidates | Supported candidates | Videos with a supported explanation | Video-level support |
+|-------|-------:|-----------:|----------------------:|------------------------------------:|--------------------:|
+| Fake | 40 | 116 | 6 | 6 | 15.0% (6/40) |
+| Real/original | 20 | 57 | 0 | 0 | 0% (0/20) |
+| **Overall** | **60** | **173** | **6** | **6** | — |
 
-| condition | label | videos | videos with supported explanation | support rate | abstention rate |
-|:----------|:------|-------:|----------------------------------:|-------------:|----------------:|
-| authentic | fake  | 40     | 7                                 | 0.175        | 0.825           |
-| authentic | real  | 20     | 1                                 | 0.050        | 0.950           |
-| placebo   | fake  | 40     | 4                                 | 0.100        | 0.900           |
-| placebo   | real  | 20     | 1                                 | 0.050        | 0.950           |
-| real      | fake  | 40     | 5                                 | 0.125        | 0.875           |
-| real      | real  | 20     | 0                                 | 0.000        | 1.000           |
+Overall candidate-level support was **3.47% (6/173)**.
 
-Key observations:
-- Under the `real` condition (detector-guided candidates), 0/20 genuine videos
-  receive a supported explanation, confirming the control mechanism suppresses
-  false positives on real content.
-- The `placebo` condition (random candidates) yields a 10% support rate on fake
-  videos, providing a baseline for spurious support.
-- The `authentic` condition (random candidates on real videos) yields 5% support
-  on genuine videos, consistent with the 95th-percentile threshold.
+On this 60-video evaluation subset, CAFE produced a verified explanation for
+6/40 fake videos and abstained on all 20 genuine videos. This is the observed
+behaviour of an explanation-verification layer, not 15% deepfake-detection
+accuracy, and should not be generalized to all of FaceForensics++.
 
----
+## Observed support by manipulation method
 
-## Candidate-level support rates
+| Manifest method | Videos with supported explanation / videos |
+|-----------------|-------------------------------------------:|
+| Deepfakes | 1/10 |
+| Face2Face | 2/10 |
+| FaceSwap | 2/10 |
+| NeuralTextures | 1/10 |
+| Original | 0/20 |
 
-Source: `results/tables/candidate_support.md`
+These are descriptive counts from this subset, not comparative performance
+claims about manipulation methods.
 
-| condition | label | candidate rows | supported candidates | candidate support rate |
-|:----------|:------|---------------:|---------------------:|-----------------------:|
-| authentic | fake  | 240            | 9                    | 0.0375                 |
-| authentic | real  | 120            | 1                    | 0.0083                 |
-| placebo   | fake  | 240            | 5                    | 0.0208                 |
-| placebo   | real  | 120            | 2                    | 0.0167                 |
-| real      | fake  | 116            | 5                    | 0.0431                 |
-| real      | real  | 57             | 0                    | 0.0000                 |
+## Six supported candidates
 
----
+Intervals below are original video-frame indices from the primary JSON files.
 
-## Detector-score effect (δ) by cue
+| Video | Cue | Interval | Δ | τ | p-value |
+|-------|-----|----------|---:|---:|--------:|
+| Deepfakes_000_003 | `face_texture` | 267–356 | 0.015711 | 0.011659 | 0.047619 |
+| Face2Face_000_003 | `face_texture` | 175–243 | 0.001414 | 0 | 0.047619 |
+| Face2Face_001_870 | `face_texture` | 194–330 | 0.001806 | 0.000186 | 0.047619 |
+| FaceSwap_012_026 | `face_texture` | 82–155 | 0.002522 | 0.001659 | 0.047619 |
+| FaceSwap_016_209 | `face_texture` | 10–86 | 0.009843 | 0.009075 | 0.047619 |
+| NeuralTextures_015_919 | `face_texture` | 182–281 | 0.000968 | 0.000885 | 0.047619 |
 
-Source: `results/tables/delta_by_cue.md`
+## Candidate effect and threshold summaries
 
-| condition | cue          | count | median   | mean     | std    | min      | max    |
-|:----------|:-------------|------:|---------:|---------:|-------:|---------:|-------:|
-| authentic | eye_motion   | 112   | −0.0561  | −0.0706  | 0.0575 | −0.2208  | 0.0106 |
-| authentic | face_texture | 131   | −0.0925  | −0.1043  | 0.0911 | −0.2472  | 0.0309 |
-| authentic | mouth_motion | 117   | −0.0555  | −0.0567  | 0.0479 | −0.1893  | 0.0101 |
-| placebo   | eye_motion   | 133   | −0.0612  | −0.0678  | 0.0578 | −0.2174  | 0.0367 |
-| placebo   | face_texture | 108   | −0.0788  | −0.0995  | 0.0841 | −0.2476  | 0.0344 |
-| placebo   | mouth_motion | 119   | −0.0485  | −0.0535  | 0.0454 | −0.2113  | 0.0092 |
-| real      | face_texture | 173   | −0.0760  | −0.0951  | 0.0879 | −0.2475  | 0.0310 |
+| Statistic | Candidate effect Δ | Threshold τ |
+|-----------|-------------------:|------------:|
+| Mean | -0.095124 | 0.003644 |
+| Median | -0.075958 | 0 |
+| 75th percentile | — | 0.002525 |
+| 95th percentile | 0.006071 | 0.020077 |
+| Maximum | 0.030978 | 0.040921 |
 
-Under the `real` condition all candidates are assigned `face_texture` because
-Grad-CAM overlap with the full-face region dominates for this detector.
+Most candidate effects did not exceed their candidate-specific control
+threshold; those candidates were rejected and did not yield an explanation.
+This is a descriptive result and is not attributed to a single cause.
 
----
+## Sham ablation
 
-## Detector-score effect (δ) by FF++ manipulation method
+| Control calculation | Fake candidates supported | Real candidates supported | Original six cases retained |
+|---------------------|--------------------------:|---------------------------:|----------------------------|
+| Full mixed controls | 6/116 | 0/57 | — |
+| Non-sham controls only | 8/116 | 0/57 | Yes, all six |
 
-Source: `results/tables/delta_by_method.md`
+Removing sham controls increased the number of supported fake candidates in
+this ablation. The primary result retains the full mixed-control design; the
+ablation is a sensitivity analysis, not a replacement primary analysis.
 
-Selected rows for the `real` condition (detector-guided):
+## Statistical interpretation and scope
 
-| method         | count | median   | mean     | std    | min      | max     |
-|:---------------|------:|---------:|---------:|-------:|---------:|--------:|
-| Deepfakes      | 31    | −0.0085  | −0.0490  | 0.0729 | −0.2191  | 0.0310  |
-| Face2Face      | 28    | −0.0402  | −0.0516  | 0.0550 | −0.1788  | 0.0018  |
-| FaceSwap       | 27    | −0.0006  | −0.0345  | 0.0709 | −0.2301  | 0.0098  |
-| NeuralTextures | 30    | −0.0720  | −0.0719  | 0.0461 | −0.1583  | 0.0010  |
-| original       | 57    | −0.2091  | −0.1825  | 0.0633 | −0.2475  | −0.0284 |
+The six reported p-values equal `1/21 ≈ 0.047619`, the minimum attainable
+under the current p-value calculation with 20 controls. This minimum value
+alone does **not** establish conventional statistical significance. The small
+control count, 173 tested candidates, and multiple testing limit statistical
+interpretation.
 
----
+The intervals are candidate explanation intervals, not validated temporal
+localizations: the evaluation subset does not provide temporal manipulation
+ground-truth annotations for measuring localization accuracy. Results are
+limited to this 60-video subset and this frozen detector. CAFE is an
+explanation-verification layer, not a standalone deepfake detector.
 
-## Pooled control-effect distribution
+## Secondary Validation and Diagnostic Studies
 
-Source: `results/tables/control_effect_distribution.md`
+The repository also contains supplementary validation and diagnostic analyses,
+including re-encode sensitivity testing, qualitative intervention and case
+visualizations, sham-control ablation, and other diagnostic analyses. These
+studies are supplementary validation/diagnostic analyses, not additional
+primary experimental conditions.
 
-| n control effects | median   | mean     | std    | min      | q25      | q75     | q95    | max    |
-|------------------:|---------:|---------:|-------:|---------:|---------:|--------:|-------:|-------:|
-| 17 860            | −0.0528  | −0.0679  | 0.0701 | −0.2480  | −0.1103  | −0.0026 | 0.0001 | 0.0689 |
+## Historical/Superseded Three-Condition Experiment
 
-The 95th percentile of the pooled control distribution is ≈ 0.0001, meaning
-the threshold τ is near zero for most candidates.
+Earlier outputs used three differently generated candidate populations:
+`real` used detector-guided candidates, `placebo` used random candidates, and
+`authentic` used independently seeded random candidates. Those results are
+historical and are not the final primary experiment.
 
----
-
-## Authentic-condition effect summary
-
-Source: `results/tables/authentic_effects.md`
-
-| condition | count | median δ | mean δ  | std δ  | min δ   | max δ  |
-|:----------|------:|---------:|--------:|-------:|--------:|-------:|
-| authentic | 360   | −0.0634  | −0.0783 | 0.0720 | −0.2472 | 0.0309 |
-
----
-
-## Sensitivity to τ percentile
-
-Source: `results/tables/tau_sensitivity.md`
-
-| τ percentile | condition | label | videos | videos supported | video support rate |
-|-------------:|:----------|:------|-------:|-----------------:|-------------------:|
-| 90           | real      | fake  | 40     | 11               | 0.275              |
-| 90           | real      | real  | 20     | 0                | 0.000              |
-| 90           | placebo   | fake  | 40     | 10               | 0.250              |
-| 90           | placebo   | real  | 20     | 4                | 0.200              |
-| 95           | real      | fake  | 40     | 5                | 0.125              |
-| 95           | real      | real  | 20     | 0                | 0.000              |
-| 95           | placebo   | fake  | 40     | 4                | 0.100              |
-| 95           | placebo   | real  | 20     | 1                | 0.050              |
-| 99           | real      | fake  | 40     | 5                | 0.125              |
-| 99           | real      | real  | 20     | 0                | 0.000              |
-| 99           | placebo   | fake  | 40     | 2                | 0.050              |
-| 99           | placebo   | real  | 20     | 0                | 0.000              |
-
-At τ = 95 and τ = 99 the `real / real` support rate is 0 in both cases.
-
----
-
-## Baselines
-
-### No-control baseline (fixed δ > 0.05 threshold)
-
-Source: `results/tables/baseline_no_control.md`
-
-All four condition × label combinations yield 0 supported videos and 0
-supported candidates at the δ > 0.05 threshold, confirming that raw
-intervention effects alone do not exceed this fixed threshold.
-
-### Sham-only baseline (τ from sham controls only, 95th percentile)
-
-Source: `results/tables/baseline_sham_only.md`
-
-| condition | label | videos | videos supported | video support rate |
-|:----------|:------|-------:|-----------------:|-------------------:|
-| real      | fake  | 40     | 10               | 0.250              |
-| real      | real  | 20     | 0                | 0.000              |
-| placebo   | fake  | 40     | 9                | 0.225              |
-| placebo   | real  | 20     | 1                | 0.050              |
-
-Using only sham controls inflates the fake support rate (0.25 vs. 0.125 with
-the full mixed control set), demonstrating that interval-shift and cue-swap
-controls are necessary to calibrate the threshold correctly.
-
----
-
-## Runtime
-
-Source: `results/tables/runtime.md`
-
-| condition | videos | mean (s) | median (s) | min (s) | max (s) |
-|:----------|-------:|---------:|-----------:|--------:|--------:|
-| authentic | 60     | 27.77    | 27.71      | 26.47   | 29.32   |
-| placebo   | 60     | 27.59    | 27.67      | 26.53   | 28.50   |
-| real      | 60     | 15.98    | 16.49      | 10.85   | 21.98   |
-
-The `real` condition is faster because Grad-CAM is run only once per candidate
-during candidate generation; the `placebo` and `authentic` conditions skip
-Grad-CAM but run the same number of control measurements.
-
----
-
-## Re-encode sensitivity sanity check
-
-Source: `results/sanity/reencode_sensitivity.csv`
-
-20 videos (10 fake, 10 real) were subjected to four transformations:
-
-| Transformation | Description |
-|:---------------|:------------|
-| `png_lossless` | PNG round-trip (lossless) |
-| `h264_high_quality` | H.264 CRF 18 |
-| `h264_moderate` | H.264 CRF 28 |
-| `null_blend` | Identity alpha-blend (α = 0.5, identical inputs) |
-
-PNG lossless and null-blend produce zero absolute delta on all 20 videos.
-H.264 CRF 18 produces small deltas (median ≈ 0.02–0.05); H.264 CRF 28 can
-produce larger deltas on some videos (up to ≈ 0.48 for one outlier), indicating
-the detector is sensitive to moderate compression artefacts.
-
----
-
-## Qualitative figures
-
-All figures are in `docs/figures/`.
-
-| Figure | Description |
-|:-------|:------------|
-| `case_verified.png` | Deepfakes_000_003 — verified face_texture explanation |
-| `case_abstained.png` | real_011 — abstention (no candidate exceeds τ) |
-| `case_control_rejected.png` | Deepfakes_001_870 — raw effect present but rejected by controls |
-| `effect_vs_control_distribution.png` | Candidate vs. control effect histograms |
-| `placebo_vs_real_support.png` | Video support rate: normal vs. placebo |
-| `tau_sensitivity.png` | Support rate vs. τ percentile |
-| `effect_by_cue.png` | Effect distribution by cue (box plot) |
-| `support_by_method.png` | Candidate support rate by FF++ method |
-| `intervention_examples.png` | Before/after face crops for all three cues |
+A later candidate-sharing run reused the detector-guided candidate list under
+all three labels. Since intervention and control scoring did not vary by
+condition, those outputs became numerically identical; they are not three
+independent experimental arms and must not be interpreted as such. Historical
+code and results remain preserved in the repository, but the three-condition
+tables and comparisons are not reported here as primary findings.

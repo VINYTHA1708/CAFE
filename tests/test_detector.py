@@ -1,10 +1,11 @@
 import numpy as np
 
 from cafe.detector.base_detector import BaseDetector
+from cafe.utils.paths import get_cache_path
 
 
 def test_detector_determinism():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
+    faces = np.load(get_cache_path() / "Deepfakes_000_003" / "faces.npy")
 
     detector = BaseDetector()
 
@@ -15,7 +16,7 @@ def test_detector_determinism():
 
 
 def test_detector_score_range():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
+    faces = np.load(get_cache_path() / "Deepfakes_000_003" / "faces.npy")
 
     detector = BaseDetector()
     scores = detector.score_frames(faces)
@@ -26,7 +27,7 @@ def test_detector_score_range():
 
 
 def test_video_score_is_mean():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
+    faces = np.load(get_cache_path() / "Deepfakes_000_003" / "faces.npy")
 
     detector = BaseDetector()
 

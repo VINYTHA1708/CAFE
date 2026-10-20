@@ -236,6 +236,7 @@ def run_video(detector, row):
                 (224, 224),
                 interpolation=cv2.INTER_LINEAR,
             )
+            crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
 
             transformed_faces.append(
                 crop.astype(np.uint8)

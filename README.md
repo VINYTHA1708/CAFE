@@ -192,11 +192,11 @@ results/runs/<video_id>.json
 
 ### Final primary experiment
 
-The final primary experiment is one detector-guided condition over the 60-video
-FaceForensics++ C23 subset. It generated candidates from the original
-detector/frame scores, then verified each candidate using counterfactual
-interventions and 20 controls. It completed with 173 candidates and no failed
-videos.
+The primary experiment is one detector-guided condition over the 60-video
+FaceForensics++ C23 subset. OpenCV-decoded frames are converted from BGR to RGB
+before BlazeFace; corrected crops and landmarks are stored separately from
+legacy caches. The preserved `results/primary_full/` run predates this
+correction and is not the corrected experiment result.
 
 The historical three-condition runner (`scripts/run_batch.py`) evaluates
 `real`, `placebo`, and `authentic` with different candidate populations. Its
@@ -204,28 +204,36 @@ outputs under `results/runs/` are historical and are not the primary results.
 The later candidate-sharing run is also not three independent experimental
 conditions.
 
-To run the primary detector-guided condition with the corrected masks and
-Colab-ready runner:
+To reproduce the corrected primary run without overwriting legacy caches or
+results:
 
 ```powershell
+python scripts/precompute_frames.py `
+  --manifest data/manifest.csv `
+  --cache-root cache_rgb_corrected
+python scripts/precompute_landmarks.py `
+  --manifest data/manifest.csv `
+  --cache-root cache_rgb_corrected
 python scripts/run_batch_corrected_colab.py `
   --manifest data/manifest.csv `
   --config config.yaml `
   --conditions real `
-  --out results/primary_full
+  --cache-root cache_rgb_corrected `
+  --out results/primary_rgb_corrected `
+  --batch-size 8 `
+  --require-cuda
 ```
 
-The primary per-video JSON files and summary are stored in
-`results/primary_full/`, including
-`results/primary_full/batch_corrected_summary.csv`. Do not use the old
-three-condition command as a reproduction of these primary results.
+The corrected run's per-video JSON files, summary, and provenance log are
+stored in `results/primary_rgb_corrected/`. The old three-condition command
+does not reproduce the primary analysis.
 
 ---
 
 ## Reproducing the Quantitative Results
 
-The final primary results are summarized in `docs/RESULTS.md` and in
-`results/primary_full/batch_corrected_summary.csv`. The historical
+The historical pre-correction results are documented in `docs/RESULTS.md` and
+preserved in `results/primary_full/`. The historical
 `scripts/make_figures.py` reads the legacy three-condition JSONs from
 `results/runs/`; it does not reproduce the final primary analysis.
 
@@ -253,15 +261,16 @@ docs/REPRODUCE.md
 
 | Artifact                | Path                        |
 | ----------------------- | --------------------------- |
-| Primary per-video JSONs | `results/primary_full/`     |
-| Primary batch summary   | `results/primary_full/batch_corrected_summary.csv` |
+| Preserved pre-correction JSONs | `results/primary_full/` |
+| Preserved pre-correction summary | `results/primary_full/batch_corrected_summary.csv` |
+| Corrected primary outputs | `results/primary_rgb_corrected/` |
 | Historical run JSONs    | `results/runs/`             |
 | Historical tables       | `results/tables/`           |
 | Existing figures        | `docs/figures/`             |
 | Screenshots             | `docs/screenshots/`         |
 | Demo videos             | `results/demo_videos/`      |
 | Detector sanity results | `results/sanity/`           |
-| Primary execution log   | `results/primary_full/`     |
+| Corrected primary execution log | `results/primary_rgb_corrected/` |
 
 ---
 

@@ -1,6 +1,6 @@
 paths:
   dataset: dataset
-  cache: cache
+  cache: cache_rgb_corrected
   results: results
   models: models
 

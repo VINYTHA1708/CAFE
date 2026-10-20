@@ -3,9 +3,10 @@ import matplotlib.pyplot as plt
 
 from cafe.landmarks import load_or_build_landmark_cache
 from cafe.interventions import apply_intervention
+from cafe.utils.paths import get_cache_path
 
 VIDEO_ID = "Deepfakes_000_003"
-frames = np.load(f"cache/{VIDEO_ID}/faces.npy")
+frames = np.load(get_cache_path() / VIDEO_ID / "faces.npy")
 landmarks = load_or_build_landmark_cache(VIDEO_ID)
 
 interval = (8, 23)

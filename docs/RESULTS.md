@@ -1,11 +1,13 @@
-# CAFE — Primary Results
+# CAFE — Preserved Pre-Correction Results
 
-This document reports the final primary experiment: one detector-guided
-candidate-generation condition on the 60-video FaceForensics++ C23 evaluation
-subset. The run completed on a Colab T4 GPU in approximately 15 minutes 16
-seconds. The primary per-video JSONs, batch log, and flat summary are in
-`results/primary_full/`; the summary is
-`results/primary_full/batch_corrected_summary.csv`.
+The values below describe the preserved historical run in
+`results/primary_full/`. That run predates the explicit BGR-to-RGB conversion
+at the BlazeFace input boundary. Its cache color order has not been
+independently certified, so these values are **not** the corrected primary
+results and must not be presented as such. Keep the original JSONs, log, and
+summary unchanged. Reproduce with the RGB-corrected procedure in
+`docs/REPRODUCE.md`; report metrics only after recalculating them from
+`results/primary_rgb_corrected/`.
 
 ## Primary setup
 

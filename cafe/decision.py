@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+from cafe.utils.paths import get_cache_path
 
 from cafe.templates import (
     ABSTENTION_TEMPLATE,
@@ -9,7 +9,7 @@ from cafe.templates import (
 
 
 def _load_frame_index(video_id):
-    index_path = Path("cache") / video_id / "index.json"
+    index_path = get_cache_path() / video_id / "index.json"
 
     if not index_path.exists():
         raise FileNotFoundError(

@@ -15,5 +15,6 @@ kaggle_files.txt
 
 detector_reference/
 cache/
+cache_rgb_corrected/
 
 cafe_phase16_assets.zip

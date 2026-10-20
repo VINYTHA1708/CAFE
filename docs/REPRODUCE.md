@@ -15,45 +15,68 @@ assets are:
 3. The frozen checkpoint at
    `models/EfficientNetB4_FFPP/EfficientNetB4_FFPP_bestval.pth`.
 4. The MediaPipe model at `models/face_landmarks/face_landmarker.task`.
-5. The FaceForensics++ C23 videos listed in `data/manifest.csv`, plus cached
-   preprocessing and landmarks where available.
+5. The 60 FaceForensics++ C23 videos listed in `data/manifest.csv`.
 
-The primary run used a Colab T4 GPU. The detector is frozen; there is no
-training.
+OpenCV decodes video frames as BGR. CAFE converts frames to RGB before
+BlazeFace; saved face crops are RGB for the EfficientNet ImageNet
+normalization and MediaPipe `SRGB` landmarker. Keep the default corrected cache
+root separate from the legacy `cache/` directory so old crops and results stay
+untouched.
+
+## Rebuild corrected preprocessing
+
+From the repository root, create corrected crops and then landmarks:
+
+```bash
+python scripts/precompute_frames.py \
+  --manifest data/manifest.csv \
+  --cache-root cache_rgb_corrected
+python scripts/precompute_landmarks.py \
+  --manifest data/manifest.csv \
+  --cache-root cache_rgb_corrected
+```
+
+Both commands rebuild the 60 manifest videos in `cache_rgb_corrected/`.
+Existing `cache/` contents are not replaced. Frame sampling, face selection,
+landmark extraction, and all experiment settings remain unchanged.
 
 ## Primary run
 
-Use the corrected runner, the existing manifest/configuration, and only the
-detector-guided `real` condition:
+The corrected primary run requires CUDA and uses only the detector-guided
+`real` condition:
 
 ```bash
 python scripts/run_batch_corrected_colab.py \
   --manifest data/manifest.csv \
   --config config.yaml \
   --conditions real \
-  --out results/primary_full \
+  --cache-root cache_rgb_corrected \
+  --out results/primary_rgb_corrected \
+  --batch-size 8 \
   --require-cuda
 ```
 
-The runner uses the corrected canonical eye/lip masks at runtime while
-preserving the face-texture mask, intervention/control methods, 20 controls
-per candidate, 95th-percentile threshold, p-value calculation, random seed,
-and `Δ > τ` support rule. It checkpoints per-video JSON outputs and writes a
-summary CSV as runs complete. The command above describes the primary
-detector-guided run only; do not add `placebo` or `authentic` when reproducing
-the primary results.
+The runner logs its exact command, source commit, worktree status, device, and
+cache root. It checkpoints per-video JSON outputs and writes a summary CSV as
+runs complete. The experiment configuration is unchanged: detector-guided
+candidates, existing corrected canonical eye/lip masks, face-texture mask,
+interventions and controls, 20 controls per candidate, the 95th-percentile
+threshold, p-value calculation, random seed, and `Δ > τ` support rule. Do not
+add `placebo` or `authentic`.
 
 ## Primary outputs
 
-The final run produced:
+The corrected run writes new outputs to `results/primary_rgb_corrected/`:
 
-- `results/primary_full/batch_corrected_summary.csv`
-- One `<video_id>__real.json` file per manifest video under `results/primary_full/`
-- A batch log under `results/primary_full/`
+- `batch_corrected_summary.csv`
+- One `<video_id>__real.json` file per manifest video
+- A batch log with command, commit, device, and cache provenance
 
-The recorded primary run completed all 60 videos with 173 candidate rows and
-zero failures. The summary CSV is the flat source for the candidate-level
-results; each JSON preserves per-video candidate and control details.
+The previous outputs in `results/primary_full/` are preserved historical
+artifacts from before this RGB-input correction. Do not replace them or treat
+their metrics as the corrected run's results. Recalculate all reported metrics
+from the new summary and per-video JSON files after the corrected run
+completes.
 
 ## Historical outputs and scripts
 

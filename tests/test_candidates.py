@@ -3,11 +3,13 @@ import pytest
 
 from cafe.candidates import assign_cue
 from cafe.detector.base_detector import BaseDetector
+from cafe.utils.paths import get_cache_path
 
 
 def test_assign_cue_returns_highest_overlap():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
-    landmarks = np.load("cache/Deepfakes_000_003/landmarks.npy")
+    cache_dir = get_cache_path() / "Deepfakes_000_003"
+    faces = np.load(cache_dir / "faces.npy")
+    landmarks = np.load(cache_dir / "landmarks.npy")
 
     detector = BaseDetector()
 
@@ -35,8 +37,9 @@ def test_assign_cue_returns_highest_overlap():
 
 
 def test_assign_cue_rejects_invalid_interval():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
-    landmarks = np.load("cache/Deepfakes_000_003/landmarks.npy")
+    cache_dir = get_cache_path() / "Deepfakes_000_003"
+    faces = np.load(cache_dir / "faces.npy")
+    landmarks = np.load(cache_dir / "landmarks.npy")
 
     detector = BaseDetector()
 
@@ -50,8 +53,8 @@ def test_assign_cue_rejects_invalid_interval():
 
 
 def test_assign_cue_rejects_interval_outside_frames():
-    faces = np.load("cache/Deepfakes_000_003/faces.npy")
-    landmarks = np.load("cache/Deepfakes_000_003/landmarks.npy")
+    faces = np.load(get_cache_path() / "Deepfakes_000_003" / "faces.npy")
+    landmarks = np.load(get_cache_path() / "Deepfakes_000_003" / "landmarks.npy")
 
     detector = BaseDetector()
 

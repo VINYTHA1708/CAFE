@@ -1,0 +1,466 @@
+diff --git a/cafe/landmarks.py b/cafe/landmarks.py
+index 1a01f4e..0b1d07a 100644
+--- a/cafe/landmarks.py
++++ b/cafe/landmarks.py
+@@ -131,8 +131,8 @@ from cafe.landmarks import extract_landmarks
+ from cafe.utils.paths import get_cache_path
+
+
+-def load_or_build_landmark_cache(video_id):
+-    cache_dir = get_cache_path() / video_id
++def load_or_build_landmark_cache(video_id, cache_root=None):
++    cache_dir = get_cache_path(cache_root) / video_id
+     faces_path = cache_dir / "faces.npy"
+     landmarks_path = cache_dir / "landmarks.npy"
+     index_path = cache_dir / "index.json"
+@@ -142,6 +142,12 @@ def load_or_build_landmark_cache(video_id):
+             f"Preprocessed cache not found for {video_id}"
+         )
+
++    index = json.loads(index_path.read_text(encoding="utf-8"))
++    if any(item.get("face_color_space") != "RGB" for item in index):
++        raise ValueError(
++            f"Cache for {video_id} is not marked as RGB; use a fresh corrected cache root"
++        )
++
+     if landmarks_path.exists():
+         return np.load(landmarks_path)
+
+@@ -151,8 +157,6 @@ def load_or_build_landmark_cache(video_id):
+
+     np.save(landmarks_path, landmarks)
+
+-    index = json.loads(index_path.read_text(encoding="utf-8"))
+-
+     for i, ok in enumerate(success):
+         index[i]["landmark_found"] = bool(ok)
+
+diff --git a/cafe/preprocessing.py b/cafe/preprocessing.py
+index 11971ba..ef94edb 100644
+--- a/cafe/preprocessing.py
++++ b/cafe/preprocessing.py
+@@ -76,11 +76,16 @@ def detect_and_crop_faces(frames):
+     metadata = []
+
+     for frame in frames:
+-        result = extractor.process_image(img=frame)
++        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
++        result = extractor.process_image(img=frame_rgb)
+
+         if not result["faces"]:
+             faces.append(np.zeros((face_size, face_size, 3), dtype=np.uint8))
+-            metadata.append({"bbox": None, "face_found": False})
++            metadata.append({
++                "bbox": None,
++                "face_found": False,
++                "face_color_space": "RGB",
++            })
+             continue
+
+         face = result["faces"][0]
+@@ -95,7 +100,11 @@ def detect_and_crop_faces(frames):
+             int(detection[3]),
+             int(detection[2]),
+         )
+-        metadata.append({"bbox": bbox, "face_found": True})
++        metadata.append({
++            "bbox": bbox,
++            "face_found": True,
++            "face_color_space": "RGB",
++        })
+
+     return faces, metadata
+
+@@ -108,23 +117,29 @@ def build_frame_index(original_indices, timestamps, metadata):
+             "timestamp_sec": timestamps[i],
+             "bbox": metadata[i]["bbox"],
+             "face_found": metadata[i]["face_found"],
++            "face_color_space": metadata[i]["face_color_space"],
+         }
+         for i in range(len(original_indices))
+     ]
+
+
+-def load_or_build_cache(video_id, video_path=None):
++def load_or_build_cache(video_id, video_path=None, cache_root=None):
+     config = load_config()
+-    cache_dir = get_cache_path() / video_id
++    cache_dir = get_cache_path(cache_root) / video_id
+     frames_path = cache_dir / "frames.npy"
+     faces_path = cache_dir / "faces.npy"
+     index_path = cache_dir / "index.json"
+
+     if frames_path.exists() and faces_path.exists() and index_path.exists():
++        index = json.loads(index_path.read_text(encoding="utf-8"))
++        if any(item.get("face_color_space") != "RGB" for item in index):
++            raise ValueError(
++                f"Cache for {video_id} is not marked as RGB; use a fresh corrected cache root"
++            )
+         return {
+             "frames": np.load(frames_path),
+             "faces": np.load(faces_path),
+-            "index": json.loads(index_path.read_text(encoding="utf-8")),
++            "index": index,
+         }
+
+     if video_path is None:
+@@ -146,4 +161,3 @@ def load_or_build_cache(video_id, video_path=None):
+         "faces": np.asarray(faces, dtype=np.uint8),
+         "index": index,
+     }
+-
+diff --git a/cafe/utils/paths.py b/cafe/utils/paths.py
+index 095fbd8..d73c6d0 100644
+--- a/cafe/utils/paths.py
++++ b/cafe/utils/paths.py
+@@ -7,8 +7,13 @@ def get_dataset_path():
+     return PROJECT_ROOT / "dataset"
+
+
+-def get_cache_path():
+-    return PROJECT_ROOT / "cache"
++def get_cache_path(cache_root=None):
++    path = (
++        Path(cache_root)
++        if cache_root is not None
++        else PROJECT_ROOT / "cache_rgb_corrected"
++    )
++    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+ def get_results_path():
+diff --git a/scripts/precompute_frames.py b/scripts/precompute_frames.py
+index 7de8a3d..e6ed5f3 100644
+--- a/scripts/precompute_frames.py
++++ b/scripts/precompute_frames.py
+@@ -1,5 +1,6 @@
+ from pathlib import Path
+ import csv
++import argparse
+ import sys
+ from pathlib import Path
+
+@@ -15,9 +16,14 @@ MANIFEST_PATH = PROJECT_ROOT / "data" / "manifest.csv"
+
+
+ def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH)
++    parser.add_argument("--cache-root", type=Path, default=None)
++    args = parser.parse_args()
++
+     logger = setup_logger("precompute")
+
+-    with open(MANIFEST_PATH, "r", encoding="utf-8", newline="") as f:
++    with open(args.manifest, "r", encoding="utf-8", newline="") as f:
+         rows = list(csv.DictReader(f))
+
+     total = len(rows)
+@@ -28,7 +34,11 @@ def main():
+         video_path = PROJECT_ROOT / row["path"]
+
+         try:
+-            cache = load_or_build_cache(row["video_id"], video_path)
++            cache = load_or_build_cache(
++                row["video_id"],
++                video_path,
++                cache_root=args.cache_root,
++            )
+             face_count = sum(
+                 item["face_found"] for item in cache["index"]
+             )
+@@ -45,7 +55,8 @@ def main():
+     print("Total:", total)
+     print("Processed:", processed)
+     print("Failed:", failed)
++    return 1 if failed else 0
+
+
+ if __name__ == "__main__":
+-    main()
++    raise SystemExit(main())
+diff --git a/scripts/precompute_landmarks.py b/scripts/precompute_landmarks.py
+index aa3f987..a1aa19b 100644
+--- a/scripts/precompute_landmarks.py
++++ b/scripts/precompute_landmarks.py
+@@ -1,5 +1,6 @@
+ import sys
+ from pathlib import Path
++import argparse
+ import pandas as pd
+ import numpy as np
+
+@@ -9,39 +10,57 @@ sys.path.insert(0, str(PROJECT_ROOT))
+ from cafe.landmarks import load_or_build_landmark_cache
+
+
+-manifest = pd.read_csv(PROJECT_ROOT / "data" / "manifest.csv")
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument(
++        "--manifest",
++        type=Path,
++        default=PROJECT_ROOT / "data" / "manifest.csv",
++    )
++    parser.add_argument("--cache-root", type=Path, default=None)
++    args = parser.parse_args()
+
+-total = len(manifest)
+-processed = 0
+-failed_videos = 0
+-total_success = 0
+-total_failed = 0
++    manifest = pd.read_csv(args.manifest)
+
+-for _, row in manifest.iterrows():
+-    video_id = row["video_id"]
++    total = len(manifest)
++    processed = 0
++    failed_videos = 0
++    total_success = 0
++    total_failed = 0
+
+-    try:
+-        landmarks = load_or_build_landmark_cache(video_id)
++    for _, row in manifest.iterrows():
++        video_id = row["video_id"]
+
+-        valid = np.isfinite(landmarks).all(axis=(1, 2))
+-        success = int(valid.sum())
+-        failures = int((~valid).sum())
++        try:
++            landmarks = load_or_build_landmark_cache(
++                video_id,
++                cache_root=args.cache_root,
++            )
+
+-        total_success += success
+-        total_failed += failures
+-        processed += 1
++            valid = np.isfinite(landmarks).all(axis=(1, 2))
++            success = int(valid.sum())
++            failures = int((~valid).sum())
+
+-        print(
+-            f"[{processed}/{total}] {video_id}: "
+-            f"{success} success, {failures} failed"
+-        )
++            total_success += success
++            total_failed += failures
++            processed += 1
+
+-    except Exception as e:
+-        failed_videos += 1
+-        print(f"[ERROR] {video_id}: {e}")
++            print(
++                f"[{processed}/{total}] {video_id}: "
++                f"{success} success, {failures} failed"
++            )
+
+-print("\n=== Landmark Precomputation Summary ===")
+-print("Videos processed:", processed)
+-print("Videos failed:", failed_videos)
+-print("Successful frames:", total_success)
+-print("Failed frames:", total_failed)
++        except Exception as e:
++            failed_videos += 1
++            print(f"[ERROR] {video_id}: {e}")
++
++    print("\n=== Landmark Precomputation Summary ===")
++    print("Videos processed:", processed)
++    print("Videos failed:", failed_videos)
++    print("Successful frames:", total_success)
++    print("Failed frames:", total_failed)
++    return 1 if failed_videos else 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/scripts/run_batch_corrected_colab.py b/scripts/run_batch_corrected_colab.py
+index 14274d2..0fc8c65 100644
+--- a/scripts/run_batch_corrected_colab.py
++++ b/scripts/run_batch_corrected_colab.py
+@@ -13,6 +13,7 @@ import json
+ import logging
+ import os
+ import random
++import subprocess
+ import sys
+ import time
+ from pathlib import Path
+@@ -457,6 +458,7 @@ def main(argv=None):
+     parser.add_argument("--manifest", default="data/manifest.csv")
+     parser.add_argument("--config", default="config.yaml")
+     parser.add_argument("--out", default="results/batch_corrected")
++    parser.add_argument("--cache-root", type=Path, default=Path("cache_rgb_corrected"))
+     parser.add_argument("--videos", nargs="*", default=None)
+     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
+     parser.add_argument("--batch-size", type=int, default=16)
+@@ -503,6 +505,25 @@ def main(argv=None):
+         len(manifest),
+         conditions,
+     )
++    source_commit = subprocess.run(
++        ["git", "rev-parse", "HEAD"],
++        cwd=ROOT,
++        check=True,
++        capture_output=True,
++        text=True,
++    ).stdout.strip()
++    source_status = subprocess.run(
++        ["git", "status", "--porcelain"],
++        cwd=ROOT,
++        check=True,
++        capture_output=True,
++        text=True,
++    ).stdout.strip()
++    logging.info("source_commit=%s", source_commit)
++    logging.info("source_worktree_dirty=%s", bool(source_status))
++    logging.info("source_dirty_files=%r", source_status.splitlines())
++    logging.info("command=%r", [sys.executable, *sys.argv])
++    logging.info("cache_root=%s", args.cache_root)
+
+     total_units = len(manifest) * len(conditions)
+     progress = tqdm(total=total_units, desc="Corrected CAFE", unit="run")
+@@ -547,10 +568,17 @@ def main(argv=None):
+             continue
+
+         try:
+-            cache = load_or_build_cache(video_id, video_path=video_path)
++            cache = load_or_build_cache(
++                video_id,
++                video_path=video_path,
++                cache_root=args.cache_root,
++            )
+             frames = cache["faces"]
+             frame_index = cache["index"]
+-            landmarks = load_or_build_landmark_cache(video_id)
++            landmarks = load_or_build_landmark_cache(
++                video_id,
++                cache_root=args.cache_root,
++            )
+             original_score = None
+             frame_scores = None
+             real_candidates = []
+diff --git a/tests/test_landmarks.py b/tests/test_landmarks.py
+index df5b1a9..4987a22 100644
+--- a/tests/test_landmarks.py
++++ b/tests/test_landmarks.py
+@@ -1,5 +1,11 @@
++import json
++
+ import numpy as np
++import pytest
++
++from cafe.landmarks import load_or_build_landmark_cache
+ from cafe.landmarks import region_mask
++from cafe.utils.paths import get_cache_path
+
+
+ def test_region_masks():
+@@ -20,9 +26,25 @@ def test_region_masks():
+
+
+ def test_landmark_cache_shape():
+-    landmarks = np.load("cache/Deepfakes_000_003/landmarks.npy")
++    landmarks = np.load(get_cache_path() / "Deepfakes_000_003" / "landmarks.npy")
+
+     assert landmarks.shape == (32, 478, 3)
+
+     valid = np.isfinite(landmarks).all(axis=(1, 2))
+     assert valid.sum() > 0
++
++
++def test_corrected_cache_root_rejects_unmarked_legacy_cache(tmp_path):
++    cache_dir = tmp_path / "Deepfakes_000_003"
++    cache_dir.mkdir()
++    np.save(cache_dir / "faces.npy", np.zeros((1, 224, 224, 3), dtype=np.uint8))
++    (cache_dir / "index.json").write_text(
++        json.dumps([{"face_found": True}]),
++        encoding="utf-8",
++    )
++
++    with pytest.raises(ValueError, match="not marked as RGB"):
++        load_or_build_landmark_cache(
++            "Deepfakes_000_003",
++            cache_root=tmp_path,
++        )
+diff --git a/tests/test_preprocessing.py b/tests/test_preprocessing.py
+index 5ae3af3..88b72b1 100644
+--- a/tests/test_preprocessing.py
++++ b/tests/test_preprocessing.py
+@@ -2,15 +2,17 @@ from pathlib import Path
+ import json
+
+ import numpy as np
++import pytest
+
+ from cafe.preprocessing import load_or_build_cache
++from cafe.utils.paths import get_cache_path
+
+
+ PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+ def test_precomputed_cache():
+-    cache_dir = PROJECT_ROOT / "cache" / "Deepfakes_000_003"
++    cache_dir = get_cache_path() / "Deepfakes_000_003"
+
+     frames = np.load(cache_dir / "frames.npy")
+     faces = np.load(cache_dir / "faces.npy")
+@@ -49,4 +51,52 @@ def test_cache_reuse():
+
+     assert cache["frames"].shape == (32, 480, 640, 3)
+     assert cache["faces"].shape == (32, 224, 224, 3)
+-    assert len(cache["index"]) == 32
+\ No newline at end of file
++    assert len(cache["index"]) == 32
++
++
++def test_face_detector_receives_rgb_and_preserves_source_frame(monkeypatch):
++    from cafe import preprocessing
++
++    source_bgr = np.zeros((8, 8, 3), dtype=np.uint8)
++    source_bgr[:] = (7, 11, 239)
++    detector_input = []
++
++    class FakeExtractor:
++        def process_image(self, img):
++            detector_input.append(img.copy())
++            return {
++                "faces": [img.copy()],
++                "detections": [[0.25, 0.25, 0.75, 0.75]],
++            }
++
++    monkeypatch.setattr(
++        preprocessing,
++        "_create_face_extractor",
++        lambda: FakeExtractor(),
++    )
++
++    faces, metadata = preprocessing.detect_and_crop_faces([source_bgr])
++
++    expected_rgb = np.array([239, 11, 7], dtype=np.uint8)
++    assert np.array_equal(detector_input[0][0, 0], expected_rgb)
++    assert np.array_equal(faces[0][0, 0], expected_rgb)
++    assert np.array_equal(source_bgr[0, 0], [7, 11, 239])
++    assert metadata[0]["face_found"] is True
++    assert metadata[0]["face_color_space"] == "RGB"
++
++
++def test_cache_loader_rejects_unmarked_legacy_cache(tmp_path):
++    cache_dir = tmp_path / "Deepfakes_000_003"
++    cache_dir.mkdir()
++    np.save(cache_dir / "frames.npy", np.zeros((1, 8, 8, 3), dtype=np.uint8))
++    np.save(cache_dir / "faces.npy", np.zeros((1, 224, 224, 3), dtype=np.uint8))
++    (cache_dir / "index.json").write_text(
++        json.dumps([{"face_found": True}]),
++        encoding="utf-8",
++    )
++
++    with pytest.raises(ValueError, match="not marked as RGB"):
++        load_or_build_cache(
++            "Deepfakes_000_003",
++            cache_root=tmp_path,
++        )
+\ No newline at end of file

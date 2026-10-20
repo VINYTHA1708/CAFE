@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+import argparse
 import sys
 from pathlib import Path
 
@@ -15,9 +16,14 @@ MANIFEST_PATH = PROJECT_ROOT / "data" / "manifest.csv"
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH)
+    parser.add_argument("--cache-root", type=Path, default=None)
+    args = parser.parse_args()
+
     logger = setup_logger("precompute")
 
-    with open(MANIFEST_PATH, "r", encoding="utf-8", newline="") as f:
+    with open(args.manifest, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
 
     total = len(rows)
@@ -28,7 +34,11 @@ def main():
         video_path = PROJECT_ROOT / row["path"]
 
         try:
-            cache = load_or_build_cache(row["video_id"], video_path)
+            cache = load_or_build_cache(
+                row["video_id"],
+                video_path,
+                cache_root=args.cache_root,
+            )
             face_count = sum(
                 item["face_found"] for item in cache["index"]
             )
@@ -45,7 +55,8 @@ def main():
     print("Total:", total)
     print("Processed:", processed)
     print("Failed:", failed)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

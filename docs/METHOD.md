@@ -9,7 +9,8 @@ key function or class that implements it.
 
 **Purpose:** Uniformly sample frames from a raw MP4 video, detect and crop the
 dominant face in each frame using BlazeFace, and persist the results to a
-per-video cache (`cache/<video_id>/`).
+per-video cache (`cache_rgb_corrected/<video_id>/`). Legacy contents in
+`cache/` are preserved and are not consumed by the corrected pipeline.
 
 | Item | Detail |
 |------|--------|
@@ -23,7 +24,7 @@ per-video cache (`cache/<video_id>/`).
 Landmark extraction is handled separately by `cafe/landmarks.py`
 (`extract_landmarks`, `load_or_build_landmark_cache`), which uses the MediaPipe
 FaceLandmarker task model to produce 478-point landmark arrays stored as
-`cache/<video_id>/landmarks.npy`.
+`cache_rgb_corrected/<video_id>/landmarks.npy`.
 
 ---
 

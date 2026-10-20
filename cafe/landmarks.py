@@ -131,8 +131,8 @@ from cafe.landmarks import extract_landmarks
 from cafe.utils.paths import get_cache_path
 
 
-def load_or_build_landmark_cache(video_id):
-    cache_dir = get_cache_path() / video_id
+def load_or_build_landmark_cache(video_id, cache_root=None):
+    cache_dir = get_cache_path(cache_root) / video_id
     faces_path = cache_dir / "faces.npy"
     landmarks_path = cache_dir / "landmarks.npy"
     index_path = cache_dir / "index.json"
@@ -140,6 +140,12 @@ def load_or_build_landmark_cache(video_id):
     if not faces_path.exists() or not index_path.exists():
         raise FileNotFoundError(
             f"Preprocessed cache not found for {video_id}"
+        )
+
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    if any(item.get("face_color_space") != "RGB" for item in index):
+        raise ValueError(
+            f"Cache for {video_id} is not marked as RGB; use a fresh corrected cache root"
         )
 
     if landmarks_path.exists():
@@ -150,8 +156,6 @@ def load_or_build_landmark_cache(video_id):
     landmarks, success = extract_landmarks(faces)
 
     np.save(landmarks_path, landmarks)
-
-    index = json.loads(index_path.read_text(encoding="utf-8"))
 
     for i, ok in enumerate(success):
         index[i]["landmark_found"] = bool(ok)

@@ -173,17 +173,16 @@ def _to_original_interval(frame_index, interval):
 def generate_candidates(video_id, config=None, detector=None):
     """Generate detector-driven candidate explanation hypotheses."""
     import json
-    from pathlib import Path
-
     import numpy as np
 
     from cafe.detector.base_detector import BaseDetector
     from cafe.utils.config import load_config
+    from cafe.utils.paths import get_cache_path
 
     if config is None:
         config = load_config()
 
-    cache_dir = Path(config["paths"]["cache"]) / video_id
+    cache_dir = get_cache_path(config["paths"]["cache"]) / video_id
 
     faces = np.load(cache_dir / "faces.npy")
     landmarks = np.load(cache_dir / "landmarks.npy")
@@ -301,5 +300,3 @@ def generate_placebo_candidates(
         )
 
     return candidates
-
-

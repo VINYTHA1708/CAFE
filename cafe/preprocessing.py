@@ -76,11 +76,16 @@ def detect_and_crop_faces(frames):
     metadata = []
 
     for frame in frames:
-        result = extractor.process_image(img=frame)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        result = extractor.process_image(img=frame_rgb)
 
         if not result["faces"]:
             faces.append(np.zeros((face_size, face_size, 3), dtype=np.uint8))
-            metadata.append({"bbox": None, "face_found": False})
+            metadata.append({
+                "bbox": None,
+                "face_found": False,
+                "face_color_space": "RGB",
+            })
             continue
 
         face = result["faces"][0]
@@ -95,7 +100,11 @@ def detect_and_crop_faces(frames):
             int(detection[3]),
             int(detection[2]),
         )
-        metadata.append({"bbox": bbox, "face_found": True})
+        metadata.append({
+            "bbox": bbox,
+            "face_found": True,
+            "face_color_space": "RGB",
+        })
 
     return faces, metadata
 
@@ -108,23 +117,29 @@ def build_frame_index(original_indices, timestamps, metadata):
             "timestamp_sec": timestamps[i],
             "bbox": metadata[i]["bbox"],
             "face_found": metadata[i]["face_found"],
+            "face_color_space": metadata[i]["face_color_space"],
         }
         for i in range(len(original_indices))
     ]
 
 
-def load_or_build_cache(video_id, video_path=None):
+def load_or_build_cache(video_id, video_path=None, cache_root=None):
     config = load_config()
-    cache_dir = get_cache_path() / video_id
+    cache_dir = get_cache_path(cache_root) / video_id
     frames_path = cache_dir / "frames.npy"
     faces_path = cache_dir / "faces.npy"
     index_path = cache_dir / "index.json"
 
     if frames_path.exists() and faces_path.exists() and index_path.exists():
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        if any(item.get("face_color_space") != "RGB" for item in index):
+            raise ValueError(
+                f"Cache for {video_id} is not marked as RGB; use a fresh corrected cache root"
+            )
         return {
             "frames": np.load(frames_path),
             "faces": np.load(faces_path),
-            "index": json.loads(index_path.read_text(encoding="utf-8")),
+            "index": index,
         }
 
     if video_path is None:
@@ -146,4 +161,3 @@ def load_or_build_cache(video_id, video_path=None):
         "faces": np.asarray(faces, dtype=np.uint8),
         "index": index,
     }
-

@@ -7,8 +7,13 @@ def get_dataset_path():
     return PROJECT_ROOT / "dataset"
 
 
-def get_cache_path():
-    return PROJECT_ROOT / "cache"
+def get_cache_path(cache_root=None):
+    path = (
+        Path(cache_root)
+        if cache_root is not None
+        else PROJECT_ROOT / "cache_rgb_corrected"
+    )
+    return path if path.is_absolute() else PROJECT_ROOT / path
 
 
 def get_results_path():

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -457,6 +458,7 @@ def main(argv=None):
     parser.add_argument("--manifest", default="data/manifest.csv")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--out", default="results/batch_corrected")
+    parser.add_argument("--cache-root", type=Path, default=Path("cache_rgb_corrected"))
     parser.add_argument("--videos", nargs="*", default=None)
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     parser.add_argument("--batch-size", type=int, default=16)
@@ -503,6 +505,25 @@ def main(argv=None):
         len(manifest),
         conditions,
     )
+    source_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    source_status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    logging.info("source_commit=%s", source_commit)
+    logging.info("source_worktree_dirty=%s", bool(source_status))
+    logging.info("source_dirty_files=%r", source_status.splitlines())
+    logging.info("command=%r", [sys.executable, *sys.argv])
+    logging.info("cache_root=%s", args.cache_root)
 
     total_units = len(manifest) * len(conditions)
     progress = tqdm(total=total_units, desc="Corrected CAFE", unit="run")
@@ -547,10 +568,17 @@ def main(argv=None):
             continue
 
         try:
-            cache = load_or_build_cache(video_id, video_path=video_path)
+            cache = load_or_build_cache(
+                video_id,
+                video_path=video_path,
+                cache_root=args.cache_root,
+            )
             frames = cache["faces"]
             frame_index = cache["index"]
-            landmarks = load_or_build_landmark_cache(video_id)
+            landmarks = load_or_build_landmark_cache(
+                video_id,
+                cache_root=args.cache_root,
+            )
             original_score = None
             frame_scores = None
             real_candidates = []

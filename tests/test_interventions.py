@@ -2,13 +2,14 @@ import numpy as np
 
 from cafe.landmarks import load_or_build_landmark_cache
 from cafe.interventions import apply_intervention
+from cafe.utils.paths import get_cache_path
 
 
 VIDEO_ID = "Deepfakes_000_003"
 
 
 def _load_data():
-    frames = np.load(f"cache/{VIDEO_ID}/faces.npy")
+    frames = np.load(get_cache_path() / VIDEO_ID / "faces.npy")
     landmarks = load_or_build_landmark_cache(VIDEO_ID)
     return frames, landmarks
 
@@ -84,8 +85,7 @@ def test_end_boundary():
 
 def test_landmark_failures_do_not_crash():
     frames, landmarks = _load_data()
-
-    assert not np.isfinite(landmarks).all()
+    landmarks[0] = np.nan
 
     output = apply_intervention(
         frames,
@@ -96,3 +96,4 @@ def test_landmark_failures_do_not_crash():
 
     assert output.shape == frames.shape
     assert output.dtype == frames.dtype
+    assert np.array_equal(output[0], frames[0])

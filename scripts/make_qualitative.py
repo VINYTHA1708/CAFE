@@ -84,8 +84,6 @@ def make_strip(frames, selected_interval, n=8):
     images = []
     for p in positions:
         img = frames[p]
-        if img.shape[-1] == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         images.append((p, img))
 
     return images
@@ -251,19 +249,10 @@ def main():
             interval,
         ) = load_case(case)
 
-        original_rgb = [
-            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            for frame in cache["faces"]
-        ]
-        modified_rgb = [
-            cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            for frame in modified
-        ]
-
         video_path = make_demo_video(
             case_name,
-            original_rgb,
-            modified_rgb,
+            cache["faces"],
+            modified,
         )
 
         figure_path = make_panel(

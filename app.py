@@ -19,6 +19,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
+from cafe.utils.paths import get_cache_path
+
 # ── page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="CAFE — Deepfake Explanation Verifier",
@@ -245,7 +247,7 @@ def _badge(supported: bool, delta: float) -> str:
 
 
 def _load_faces(video_id: str) -> np.ndarray | None:
-    p = ROOT / "cache" / video_id / "faces.npy"
+    p = get_cache_path() / video_id / "faces.npy"
     return np.load(str(p)) if p.exists() else None
 
 

@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import argparse
 import pandas as pd
 import numpy as np
 
@@ -9,39 +10,57 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from cafe.landmarks import load_or_build_landmark_cache
 
 
-manifest = pd.read_csv(PROJECT_ROOT / "data" / "manifest.csv")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=PROJECT_ROOT / "data" / "manifest.csv",
+    )
+    parser.add_argument("--cache-root", type=Path, default=None)
+    args = parser.parse_args()
 
-total = len(manifest)
-processed = 0
-failed_videos = 0
-total_success = 0
-total_failed = 0
+    manifest = pd.read_csv(args.manifest)
 
-for _, row in manifest.iterrows():
-    video_id = row["video_id"]
+    total = len(manifest)
+    processed = 0
+    failed_videos = 0
+    total_success = 0
+    total_failed = 0
 
-    try:
-        landmarks = load_or_build_landmark_cache(video_id)
+    for _, row in manifest.iterrows():
+        video_id = row["video_id"]
 
-        valid = np.isfinite(landmarks).all(axis=(1, 2))
-        success = int(valid.sum())
-        failures = int((~valid).sum())
+        try:
+            landmarks = load_or_build_landmark_cache(
+                video_id,
+                cache_root=args.cache_root,
+            )
 
-        total_success += success
-        total_failed += failures
-        processed += 1
+            valid = np.isfinite(landmarks).all(axis=(1, 2))
+            success = int(valid.sum())
+            failures = int((~valid).sum())
 
-        print(
-            f"[{processed}/{total}] {video_id}: "
-            f"{success} success, {failures} failed"
-        )
+            total_success += success
+            total_failed += failures
+            processed += 1
 
-    except Exception as e:
-        failed_videos += 1
-        print(f"[ERROR] {video_id}: {e}")
+            print(
+                f"[{processed}/{total}] {video_id}: "
+                f"{success} success, {failures} failed"
+            )
 
-print("\n=== Landmark Precomputation Summary ===")
-print("Videos processed:", processed)
-print("Videos failed:", failed_videos)
-print("Successful frames:", total_success)
-print("Failed frames:", total_failed)
+        except Exception as e:
+            failed_videos += 1
+            print(f"[ERROR] {video_id}: {e}")
+
+    print("\n=== Landmark Precomputation Summary ===")
+    print("Videos processed:", processed)
+    print("Videos failed:", failed_videos)
+    print("Successful frames:", total_success)
+    print("Failed frames:", total_failed)
+    return 1 if failed_videos else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
